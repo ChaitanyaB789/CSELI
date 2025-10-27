@@ -1,0 +1,148 @@
+#!/usr/bin/env python3
+"""
+Simple scanner (CLI) — improved to accept:
+- target URL as argv[1] (required)
+- optional output filename as argv[2] (optional)
+
+It will append findings to the output file (REPORTS/...) if provided.
+"""
+import sys
+import requests
+from bs4 import BeautifulSoup
+from colorama import Fore, init
+from urllib.parse import urljoin, urlparse
+import os
+from datetime import datetime
+
+init(autoreset=True)
+
+def safe_get(url, timeout=15, verify=True, headers=None):
+    if headers is None:
+        headers = {"User-Agent": "SimpleScanner/1.0"}
+    try:
+        return requests.get(url, headers=headers, timeout=timeout, verify=verify)
+    except requests.exceptions.SSLError:
+        return requests.get(url, headers=headers, timeout=timeout, verify=False)
+    except Exception:
+        raise
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python scanner.py <target_url> [output_filename]")
+        sys.exit(1)
+
+    target_url = sys.argv[1]
+    out_filename = None
+    if len(sys.argv) >= 3:
+        out_filename = sys.argv[2]
+
+    # normalize scheme
+    parsed = urlparse(target_url)
+    if parsed.scheme == "":
+        target_url = "http://" + target_url
+        parsed = urlparse(target_url)
+
+    print(Fore.CYAN + f"Starting scan: {target_url}")
+
+    try:
+        resp = safe_get(target_url, timeout=15)
+    except Exception as e:
+        print(Fore.RED + f"[!] Could not reach target: {e}")
+        # still write error to output file if requested
+        if out_filename:
+            write_report(out_filename, target_url, [], error=str(e))
+        sys.exit(1)
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    raw_links = [a.get("href") for a in soup.find_all("a", href=True)]
+    links = []
+    for l in raw_links:
+        try:
+            full = urljoin(target_url, l)
+            if urlparse(full).netloc == parsed.netloc:
+                links.append(full)
+        except Exception:
+            continue
+
+    XSS_PAYLOAD = "<script>alert('XSS')</script>"
+    SQL_ERRORS = [
+        "you have an error in your sql syntax",
+        "warning: mysql",
+        "unclosed quotation mark",
+        "quoted string not properly terminated",
+        "sql syntax"
+    ]
+
+    findings = []
+
+    # reflected XSS (simple)
+    for link in links:
+        if "=" in link:
+            test_url = link.replace("=", f"={XSS_PAYLOAD}")
+            try:
+                r = safe_get(test_url, timeout=15)
+                if XSS_PAYLOAD in r.text:
+                    findings.append(("XSS", test_url))
+                    print(Fore.RED + f"[!] Possible XSS: {test_url}")
+            except Exception as e:
+                print(Fore.YELLOW + f"[!] Error testing {test_url}: {e}")
+
+    # SQLi via error strings
+    for link in links:
+        if "=" in link:
+            test_url = link + "'"
+            try:
+                r = safe_get(test_url, timeout=15)
+                body = r.text.lower()
+                for err in SQL_ERRORS:
+                    if err in body:
+                        findings.append(("SQLi", test_url))
+                        print(Fore.RED + f"[!] Possible SQLi: {test_url}")
+                        break
+            except Exception as e:
+                print(Fore.YELLOW + f"[!] Error testing {test_url}: {e}")
+
+    # summary to stdout
+    if findings:
+        print(Fore.GREEN + f"\nFindings ({len(findings)}):")
+        for typ, url in findings:
+            print(f"- {typ}: {url}")
+    else:
+        print(Fore.GREEN + "\nNo findings detected (quick scan).")
+
+    # write report if requested
+    if out_filename:
+        write_report(out_filename, target_url, findings)
+
+def write_report(out_filename, target_url, findings, error=None):
+    # Determine reports folder relative to scanner.py location
+    base = os.path.dirname(os.path.abspath(__file__))
+    # prefer sibling REPORTS outside this folder
+    parent_reports = os.path.join(base, '..', 'REPORTS')
+    local_reports = os.path.join(base, 'REPORTS')
+    reports_dir = parent_reports if os.path.isdir(parent_reports) or not os.path.isdir(local_reports) else local_reports
+    os.makedirs(reports_dir, exist_ok=True)
+
+    # if caller passed only a name, use that; if path, respect it but place inside reports_dir
+    filename = os.path.basename(out_filename)
+    report_path = os.path.join(reports_dir, filename)
+
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    with open(report_path, 'a', encoding='utf-8') as f:
+        f.write(f"=== Scan: {now} ===\n")
+        f.write(f"Target: {target_url}\n")
+        if error:
+            f.write(f"Error: {error}\n\n")
+            return
+        f.write(f"Found links (same domain): {len(findings)}\n")
+        if findings:
+            f.write("Findings:\n")
+            for typ, url in findings:
+                f.write(f"- {typ}: {url}\n")
+        else:
+            f.write("Findings: None\n")
+        f.write("\n")
+    print(Fore.CYAN + f"Report written to: {report_path}")
+
+if __name__ == "__main__":
+    main()

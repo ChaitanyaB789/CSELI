@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Vulnerability Scanner</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        body {
+            background-color: #0d1117;
+            color: #e6edf3;
+            font-family: 'Segoe UI', sans-serif;
+            text-align: center;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #58a6ff;
+        }
+
+        form {
+            margin-top: 40px;
+        }
+
+        input[type="text"] {
+            width: 400px;
+            padding: 10px;
+            border: 1px solid #58a6ff;
+            border-radius: 8px;
+            background-color: #161b22;
+            color: #e6edf3;
+        }
+
+        button {
+            background-color: #238636;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            margin-left: 10px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #2ea043;
+        }
+
+        #output {
+            margin-top: 40px;
+            text-align: left;
+            background-color: #161b22;
+            border-radius: 8px;
+            padding: 20px;
+            width: 80%;
+            margin-left: auto;
+            margin-right: auto;
+            white-space: pre-wrap;
+            border: 1px solid #30363d;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Web Vulnerability Scanner</h1>
+    <p>Enter a website URL to perform a basic vulnerability scan.</p>
+
+    <form action="/scan" method="POST">
+        <input type="text" name="target_url" placeholder="Enter target URL (e.g., https://example.com)" required>
+        <button type="submit">Start Scan</button>
+    </form>
+
+    <div id="output">
+        {% if output %}
+            <h3>Scan Results:</h3>
+            <pre>{{ output }}</pre>
+        {% endif %}
+    </div>
+</body>
+</html>

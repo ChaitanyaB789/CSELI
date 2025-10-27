@@ -1,0 +1,6 @@
+flask
+requests
+pandas
+requests
+beautifulsoup4
+colorama

@@ -1,0 +1,5 @@
+=== Scan: 2025-10-27 06:24:22 UTC ===
+Target: https://example.com
+Found links: 0
+Findings: None
+

@@ -1,0 +1,4 @@
+=== Scan: 2025-10-27 08:56:30 UTC ===
+Target: https://testphp.vulnweb.com
+Error: HTTPSConnectionPool(host='testphp.vulnweb.com', port=443): Max retries exceeded with url: / (Caused by ConnectTimeoutError(<urllib3.connection.HTTPSConnection object at 0x00000277F8240FD0>, 'Connection to testphp.vulnweb.com timed out. (connect timeout=15)'))
+
